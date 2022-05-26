@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:http/http.dart' as http;
+import 'package:text_to_speech/text_to_speech.dart';
+import 'package:speech_to_text/speech_to_text.dart' as sttp;
+import 'package:speech_to_text/speech_recognition_result.dart';
 
 void main() => runApp(MaterialApp(
     theme: ThemeData(
@@ -154,6 +157,40 @@ class _RecipeState extends State<Recipe> {
   List<String> steps = [];
   int indexStep = 1;
 
+  TextToSpeech tts = TextToSpeech(); 
+  sttp.SpeechToText speech = sttp.SpeechToText();
+  bool _speechEnabled = false;
+  String _lastWords = '';
+    
+  _initSpeech() async {
+    print("inicializou");
+    _speechEnabled = await speech.initialize();
+    setState(() {});
+  }
+  void _startListening() async{
+    print("ovindo");
+    if(_speechEnabled){
+      await speech.listen(onResult: _onSpeechResult);
+    }else{
+      print("não liberado microfone");
+    }
+  }
+  void _stopListening() async {
+    print("stopped");
+    await speech.stop();
+  }
+
+  void _onSpeechResult(SpeechRecognitionResult result) {
+    print(result.recognizedWords.toString());
+    if(result.recognizedWords.contains('próximo')){
+      setState(() {
+        incrementIndex();
+        _startListening();
+    });
+    }
+    
+  }
+
   void incrementIndex() {
     if (step == 0 && indexStep < ingredientes.length - 2) {
       indexStep++;
@@ -200,6 +237,7 @@ class _RecipeState extends State<Recipe> {
   }
 
   void init() async {
+    
     setState(() {
       isLoading = true;
     });
@@ -212,11 +250,23 @@ class _RecipeState extends State<Recipe> {
   @override
   void initState() {
     super.initState();
+    _initSpeech();
     init();
+  }
+
+  void speechIngredient(String text) async{
+    _stopListening();
+    tts.speak(text);
+    await Future.delayed(Duration(seconds: 3), (){
+      _startListening();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    tts.setLanguage("pt-BR");
+    
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Receita'),
@@ -232,9 +282,7 @@ class _RecipeState extends State<Recipe> {
                     : listSteps(),
             TextButton(
                 onPressed: () {
-                  setState(() {
-                    incrementIndex();
-                  });
+                  _startListening();
                 },
                 child: const Text("Próximo passo"))
           ],
@@ -244,10 +292,12 @@ class _RecipeState extends State<Recipe> {
   }
 
   Widget listIngredientes() {
+    speechIngredient(ingredientes[indexStep].toString());
     return Text(ingredientes[indexStep].toString());
   }
 
   Widget listSteps() {
+    speechIngredient(steps[indexStep].toString());
     return Text(steps[indexStep].toString());
   }
 }
